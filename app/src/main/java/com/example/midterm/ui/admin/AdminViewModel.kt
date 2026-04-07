@@ -1,5 +1,6 @@
 package com.example.midterm.ui.admin
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.midterm.data.model.Role
@@ -41,12 +42,15 @@ class AdminViewModel : ViewModel() {
         }
     }
 
-    fun createUser(username: String, password: String, role: Role) {
+    fun createUser(username: String, password: String, role: Role, imageUri: Uri? = null) {
         viewModelScope.launch {
             try {
                 val result = repository.createUser(username.trim(), password.trim(), role)
                 result.fold(
-                    onSuccess = {
+                    onSuccess = { user ->
+                        if (imageUri != null) {
+                            repository.updateUser(user, imageUri)
+                        }
                         _actionMessage.value = "Tạo tài khoản thành công"
                         loadUsers()
                     },
@@ -58,10 +62,10 @@ class AdminViewModel : ViewModel() {
         }
     }
 
-    fun updateUser(user: User) {
+    fun updateUser(user: User, imageUri: Uri? = null) {
         viewModelScope.launch {
             try {
-                val result = repository.updateUser(user)
+                val result = repository.updateUser(user, imageUri)
                 result.fold(
                     onSuccess = {
                         _actionMessage.value = "Cập nhật thành công"

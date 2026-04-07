@@ -8,14 +8,16 @@ data class User(
     val id: String = "",
     val username: String = "",
     val password: String = "",
-    val role: Role = Role.USER
+    val role: Role = Role.USER,
+    val imageUrl: String = ""
 ) {
     // Firestore yêu cầu constructor không tham số
     fun toMap(): Map<String, Any> = mapOf(
         "id" to id,
         "username" to username,
         "password" to password,
-        "role" to role.name
+        "role" to role.name,
+        "imageUrl" to imageUrl
     )
 
     companion object {
@@ -27,7 +29,8 @@ data class User(
                 Role.valueOf(map["role"] as? String ?: "USER")
             } catch (e: Exception) {
                 Role.USER
-            }
+            },
+            imageUrl = map["imageUrl"] as? String ?: ""
         )
     }
 }

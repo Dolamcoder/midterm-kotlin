@@ -8,6 +8,7 @@ import com.example.midterm.ui.admin.AdminDashboardScreen
 import com.example.midterm.ui.auth.LoginScreen
 import com.example.midterm.ui.auth.RegisterScreen
 import com.example.midterm.ui.user.UserDashboardScreen
+import com.example.midterm.util.UserSessionManager
 
 @Composable
 fun AppNavigation(navController: NavHostController) {
@@ -41,6 +42,7 @@ fun AppNavigation(navController: NavHostController) {
         composable(Routes.ADMIN_DASHBOARD) {
             AdminDashboardScreen(
                 onLogout = {
+                    UserSessionManager.logout()
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(0) { inclusive = true }
                     }
@@ -51,6 +53,7 @@ fun AppNavigation(navController: NavHostController) {
         composable(Routes.USER_DASHBOARD) {
             UserDashboardScreen(
                 onLogout = {
+                    UserSessionManager.logout()
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(0) { inclusive = true }
                     }

@@ -1,7 +1,10 @@
 package com.example.midterm.data.repository
 
+import android.net.Uri
 import com.example.midterm.data.model.Role
 import com.example.midterm.data.model.User
+import com.example.midterm.util.ImageUploadService
+import com.example.midterm.utils.PasswordUtils
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
@@ -10,50 +13,76 @@ class UserRepository {
 
     private val db = FirebaseFirestore.getInstance()
     private val usersCollection = db.collection("users")
+    suspend fun login(username: String, password: String): Result<User> {
+        return try {
+            // 1. Tìm user theo username
+            val snapshot = usersCollection
+                .whereEqualTo("username", username)
+                .get()
+                .await()
 
-    // Seed admin account nếu chưa có
-    suspend fun seedAdminIfNeeded() {
-        val snapshot = usersCollection
-            .whereEqualTo("role", Role.ADMIN.name)
-            .get().await()
-        if (snapshot.isEmpty) {
-            val admin = User(
+            if (snapshot.isEmpty) {
+                return Result.failure(Exception("Sai username hoặc password"))
+            }
+
+            val user = User.fromMap(snapshot.documents[0].data ?: emptyMap())
+
+            // 2. Hash password nhập vào
+            val hashed = PasswordUtils.hashPassword(password)
+            // 3. So sánh
+            if (user.password!=hashed) {
+                return Result.failure(Exception("Sai username hoặc password"))
+            }
+
+            Result.success(user)
+
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    suspend fun register(username: String, password: String, imageUri: Uri? = null): Result<User> {
+        return try {
+            if (username.isBlank() || password.length < 6) {
+                return Result.failure(Exception("Thông tin không hợp lệ"))
+            }
+
+            val existing = usersCollection
+                .whereEqualTo("username", username)
+                .get()
+                .await()
+
+            if (!existing.isEmpty) {
+                return Result.failure(Exception("Username đã tồn tại"))
+            }
+
+            var imageUrl = ""
+            if (imageUri != null) {
+                val uploadResult = ImageUploadService.uploadImage(imageUri)
+                if (uploadResult.isSuccess) {
+                    imageUrl = uploadResult.getOrNull() ?: ""
+                } else {
+                    return Result.failure(uploadResult.exceptionOrNull() ?: Exception("Lỗi upload image"))
+                }
+            }
+
+            val hashed = PasswordUtils.hashPassword(password)
+            val newUser = User(
                 id = UUID.randomUUID().toString(),
-                username = "admin",
-                password = "admin123",
-                role = Role.ADMIN
+                username = username,
+                password = hashed,
+                role = Role.USER,
+                imageUrl = imageUrl
             )
-            usersCollection.document(admin.id).set(admin.toMap()).await()
+
+            usersCollection.document(newUser.id)
+                .set(newUser.toMap())
+                .await()
+
+            Result.success(newUser)
+
+        } catch (e: Exception) {
+            Result.failure(e)
         }
-    }
-
-    suspend fun login(username: String, password: String): User? {
-        val snapshot = usersCollection
-            .whereEqualTo("username", username)
-            .whereEqualTo("password", password)
-            .get().await()
-        return if (!snapshot.isEmpty) {
-            User.fromMap(snapshot.documents[0].data ?: emptyMap())
-        } else null
-    }
-
-    suspend fun register(username: String, password: String): Result<User> {
-        // Kiểm tra username đã tồn tại chưa
-        val existing = usersCollection
-            .whereEqualTo("username", username)
-            .get().await()
-        if (!existing.isEmpty) {
-            return Result.failure(Exception("Username đã tồn tại"))
-        }
-
-        val newUser = User(
-            id = UUID.randomUUID().toString(),
-            username = username,
-            password = password,
-            role = Role.USER
-        )
-        usersCollection.document(newUser.id).set(newUser.toMap()).await()
-        return Result.success(newUser)
     }
 
     suspend fun getAllUsers(): List<User> {
@@ -70,19 +99,32 @@ class UserRepository {
         if (!existing.isEmpty) {
             return Result.failure(Exception("Username đã tồn tại"))
         }
+        val hashed=PasswordUtils.hashPassword(password)
         val user = User(
             id = UUID.randomUUID().toString(),
             username = username,
-            password = password,
+            password = hashed,
             role = role
         )
         usersCollection.document(user.id).set(user.toMap()).await()
         return Result.success(user)
     }
 
-    suspend fun updateUser(user: User): Result<Unit> {
+    suspend fun updateUser(user: User, imageUri: Uri? = null): Result<Unit> {
         return try {
-            usersCollection.document(user.id).set(user.toMap()).await()
+            var updatedUser = user
+            
+            // Upload image nếu có
+            if (imageUri != null) {
+                val uploadResult = ImageUploadService.uploadImage(imageUri)
+                if (uploadResult.isSuccess) {
+                    updatedUser = user.copy(imageUrl = uploadResult.getOrNull() ?: "")
+                } else {
+                    return Result.failure(uploadResult.exceptionOrNull() ?: Exception("Lỗi upload image"))
+                }
+            }
+            
+            usersCollection.document(updatedUser.id).set(updatedUser.toMap()).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
