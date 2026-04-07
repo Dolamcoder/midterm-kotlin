@@ -1,8 +1,10 @@
 package com.example.midterm.data.repository
 
+import android.net.Uri
 import com.example.midterm.data.model.Role
 import com.example.midterm.data.model.User
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
 
@@ -10,6 +12,20 @@ class UserRepository {
 
     private val db = FirebaseFirestore.getInstance()
     private val usersCollection = db.collection("users")
+    private val storage = FirebaseStorage.getInstance()
+    private val storageRef = storage.reference.child("user_images")
+
+    // Upload ảnh lên Firebase Storage và trả về URL
+    suspend fun uploadImage(imageUri: Uri, userId: String): Result<String> {
+        return try {
+            val imageRef = storageRef.child("$userId.jpg")
+            imageRef.putFile(imageUri).await()
+            val downloadUrl = imageRef.downloadUrl.await().toString()
+            Result.success(downloadUrl)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
     // Seed admin account nếu chưa có
     suspend fun seedAdminIfNeeded() {
@@ -63,7 +79,16 @@ class UserRepository {
         }
     }
 
-    suspend fun createUser(username: String, password: String, role: Role): Result<User> {
+    suspend fun getUserById(userId: String): User? {
+        return try {
+            val doc = usersCollection.document(userId).get().await()
+            doc.data?.let { User.fromMap(it) }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    suspend fun createUser(username: String, password: String, role: Role, imageUrl: String = ""): Result<User> {
         val existing = usersCollection
             .whereEqualTo("username", username)
             .get().await()
@@ -74,7 +99,8 @@ class UserRepository {
             id = UUID.randomUUID().toString(),
             username = username,
             password = password,
-            role = role
+            role = role,
+            imageUrl = imageUrl
         )
         usersCollection.document(user.id).set(user.toMap()).await()
         return Result.success(user)
@@ -91,6 +117,12 @@ class UserRepository {
 
     suspend fun deleteUser(userId: String): Result<Unit> {
         return try {
+            // Xóa ảnh nếu có
+            try {
+                storageRef.child("$userId.jpg").delete().await()
+            } catch (e: Exception) {
+                // Bỏ qua nếu không có ảnh
+            }
             usersCollection.document(userId).delete().await()
             Result.success(Unit)
         } catch (e: Exception) {

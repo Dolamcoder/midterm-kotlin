@@ -1,5 +1,6 @@
 package com.example.midterm.ui.admin
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.midterm.data.model.Role
@@ -25,6 +26,9 @@ class AdminViewModel : ViewModel() {
     private val _actionMessage = MutableStateFlow<String?>(null)
     val actionMessage: StateFlow<String?> = _actionMessage
 
+    private val _isUploading = MutableStateFlow(false)
+    val isUploading: StateFlow<Boolean> = _isUploading
+
     init {
         loadUsers()
     }
@@ -41,10 +45,27 @@ class AdminViewModel : ViewModel() {
         }
     }
 
-    fun createUser(username: String, password: String, role: Role) {
+    fun createUser(username: String, password: String, role: Role, imageUri: Uri? = null) {
         viewModelScope.launch {
             try {
-                val result = repository.createUser(username.trim(), password.trim(), role)
+                _isUploading.value = true
+                var imageUrl = ""
+                
+                // Nếu có ảnh, upload trước
+                if (imageUri != null) {
+                    val tempId = java.util.UUID.randomUUID().toString()
+                    val uploadResult = repository.uploadImage(imageUri, tempId)
+                    uploadResult.fold(
+                        onSuccess = { url -> imageUrl = url },
+                        onFailure = { 
+                            _actionMessage.value = "Upload ảnh thất bại: ${it.message}"
+                            _isUploading.value = false
+                            return@launch
+                        }
+                    )
+                }
+                
+                val result = repository.createUser(username.trim(), password.trim(), role, imageUrl)
                 result.fold(
                     onSuccess = {
                         _actionMessage.value = "Tạo tài khoản thành công"
@@ -54,14 +75,32 @@ class AdminViewModel : ViewModel() {
                 )
             } catch (e: Exception) {
                 _actionMessage.value = "Lỗi: ${e.message}"
+            } finally {
+                _isUploading.value = false
             }
         }
     }
 
-    fun updateUser(user: User) {
+    fun updateUser(user: User, imageUri: Uri? = null) {
         viewModelScope.launch {
             try {
-                val result = repository.updateUser(user)
+                _isUploading.value = true
+                var updatedUser = user
+                
+                // Nếu có ảnh mới, upload
+                if (imageUri != null) {
+                    val uploadResult = repository.uploadImage(imageUri, user.id)
+                    uploadResult.fold(
+                        onSuccess = { url -> updatedUser = user.copy(imageUrl = url) },
+                        onFailure = { 
+                            _actionMessage.value = "Upload ảnh thất bại: ${it.message}"
+                            _isUploading.value = false
+                            return@launch
+                        }
+                    )
+                }
+                
+                val result = repository.updateUser(updatedUser)
                 result.fold(
                     onSuccess = {
                         _actionMessage.value = "Cập nhật thành công"
@@ -71,6 +110,8 @@ class AdminViewModel : ViewModel() {
                 )
             } catch (e: Exception) {
                 _actionMessage.value = "Lỗi: ${e.message}"
+            } finally {
+                _isUploading.value = false
             }
         }
     }
