@@ -31,7 +31,8 @@ object ImageUploadService {
             val inputStream = ctx.contentResolver.openInputStream(uri)
                 ?: return@withContext Result.failure(Exception("Không thể mở file"))
             
-            val fileName = "img_${UUID.randomUUID()}.jpg"
+            // Thêm timestamp để tạo filename mới mỗi lần, tránh cache
+            val fileName = "img_${System.currentTimeMillis()}_${UUID.randomUUID()}.jpg"
             val imageFile = File(ctx.filesDir, "$IMAGES_DIR/$fileName")
             
             inputStream.use { input ->

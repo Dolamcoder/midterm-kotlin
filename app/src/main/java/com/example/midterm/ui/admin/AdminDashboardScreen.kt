@@ -57,7 +57,7 @@ fun UserCard(
             modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar
+            // Avatar - hiển thị ảnh nếu có, không thì hiển thị chữ cái đầu
             Box(
                 modifier = Modifier
                     .size(46.dp)
@@ -67,17 +67,29 @@ fun UserCard(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = user.username.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
+                if (!user.imageUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = java.io.File(user.imageUrl),
+                        contentDescription = "Avatar",
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Text(
+                        text = user.username.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
+                // Luôn hiển thị tên người dùng
                 Text(
                     text = user.username,
                     color = Color.White,

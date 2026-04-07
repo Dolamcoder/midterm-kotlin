@@ -100,12 +100,14 @@ fun UserDashboardContent(
                 contentAlignment = Alignment.Center
             ) {
                 if (!user?.imageUrl.isNullOrEmpty()) {
-                    AsyncImage(
-                        model = java.io.File(user!!.imageUrl),
-                        contentDescription = "Avatar",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
+                    key(user!!.id + "_" + user!!.imageUrl) {
+                        AsyncImage(
+                            model = java.io.File(user!!.imageUrl),
+                            contentDescription = "Avatar",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
                 } else {
                     Text(
                         text = user?.username?.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
@@ -132,7 +134,7 @@ fun UserDashboardContent(
                 color = Color(0x334CAF82)
             ) {
                 Text(
-                    text = "🧑 USER",
+                    text = "USER",
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
                     color = Color(0xFF4CAF82),
                     fontSize = 13.sp,
@@ -218,11 +220,16 @@ fun UserDashboardScreen(onLogout: () -> Unit) {
             if (uri != null && currentUser != null) {
                 isUpdating = true
                 coroutineScope.launch {
-                    val result = repository.updateUser(currentUser!!, uri)
-                    if (result.isSuccess) {
-                        // Reload user từ session để lấy imageUrl mới
-                        val reloadedUser = currentUser!!.copy(imageUrl = currentUser!!.imageUrl)
-                        UserSessionManager.setCurrentUser(reloadedUser)
+                    // Upload ảnh mới
+                    val uploadResult = com.example.midterm.util.ImageUploadService.uploadImage(uri)
+                    if (uploadResult.isSuccess) {
+                        val newImageUrl = uploadResult.getOrNull() ?: ""
+                        val updatedUser = currentUser!!.copy(imageUrl = newImageUrl)
+                        val result = repository.updateUser(updatedUser)
+                        if (result.isSuccess) {
+                            // Cập nhật user trong session với imageUrl mới
+                            UserSessionManager.setCurrentUser(updatedUser)
+                        }
                     }
                     isUpdating = false
                 }

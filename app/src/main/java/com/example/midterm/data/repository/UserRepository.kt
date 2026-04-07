@@ -113,12 +113,17 @@ class UserRepository {
     suspend fun updateUser(user: User, imageUri: Uri? = null): Result<Unit> {
         return try {
             var updatedUser = user
-
+            
+            // Mã hóa mật khẩu nếu nó không phải là hash
+            if (updatedUser.password.isNotEmpty() && !updatedUser.password.startsWith("\$2a\$") && !updatedUser.password.startsWith("\$2b\$")) {
+                updatedUser = updatedUser.copy(password = PasswordUtils.hashPassword(updatedUser.password))
+            }
+            
             // Upload image nếu có
             if (imageUri != null) {
                 val uploadResult = ImageUploadService.uploadImage(imageUri)
                 if (uploadResult.isSuccess) {
-                    updatedUser = user.copy(imageUrl = uploadResult.getOrNull() ?: "")
+                    updatedUser = updatedUser.copy(imageUrl = uploadResult.getOrNull() ?: "")
                 } else {
                     return Result.failure(uploadResult.exceptionOrNull() ?: Exception("Lỗi upload image"))
                 }

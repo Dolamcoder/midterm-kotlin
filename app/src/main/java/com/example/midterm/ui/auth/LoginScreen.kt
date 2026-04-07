@@ -70,7 +70,7 @@ fun LoginContent(
             ) {
                 // Header
                 Text(
-                    text = "👋 Chào mừng",
+                    text = "Chào mừng",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
