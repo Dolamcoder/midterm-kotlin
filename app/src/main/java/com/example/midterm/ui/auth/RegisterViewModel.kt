@@ -1,8 +1,10 @@
 package com.example.midterm.ui.auth
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.midterm.data.model.User
+import com.example.midterm.data.repository.AuthRepository
 import com.example.midterm.data.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,7 +24,7 @@ class RegisterViewModel : ViewModel() {
     private val _uiState = MutableStateFlow<RegisterUiState>(RegisterUiState.Idle)
     val uiState: StateFlow<RegisterUiState> = _uiState
 
-    fun register(username: String, password: String, confirmPassword: String) {
+    fun register(username: String, password: String, confirmPassword: String, imageUri: Uri? = null) {
         when {
             username.isBlank() || password.isBlank() -> {
                 _uiState.value = RegisterUiState.Error("Vui lòng điền đầy đủ thông tin")
@@ -40,9 +42,9 @@ class RegisterViewModel : ViewModel() {
                 viewModelScope.launch {
                     _uiState.value = RegisterUiState.Loading
                     try {
-                        val result = repository.register(username.trim(), password.trim())
+                        val result = repository.register(username.trim(), password.trim(), imageUri)
                         result.fold(
-                            onSuccess = { _uiState.value = RegisterUiState.Success(it) },
+                            onSuccess = {_uiState.value = RegisterUiState.Success(it) },
                             onFailure = { _uiState.value = RegisterUiState.Error(it.message ?: "Đăng ký thất bại") }
                         )
                     } catch (e: Exception) {

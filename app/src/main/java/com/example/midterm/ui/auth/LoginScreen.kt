@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.midterm.data.model.Role
+import com.example.midterm.util.UserSessionManager
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STATELESS UI — preview-friendly, nhận data + callbacks từ ngoài
@@ -198,15 +199,12 @@ fun LoginScreen(
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    // Seed admin khi màn hình khởi động
-    LaunchedEffect(Unit) {
-        viewModel.seedAdmin()
-    }
-
     // Xử lý navigation khi login thành công
     LaunchedEffect(uiState) {
         if (uiState is LoginUiState.Success) {
-            onLoginSuccess((uiState as LoginUiState.Success).user.role)
+            val user = (uiState as LoginUiState.Success).user
+            UserSessionManager.setCurrentUser(user)
+            onLoginSuccess(user.role)
             viewModel.resetState()
         }
     }

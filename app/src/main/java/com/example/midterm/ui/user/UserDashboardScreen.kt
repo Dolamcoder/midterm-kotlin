@@ -1,25 +1,37 @@
 package com.example.midterm.ui.user
 
+import android.Manifest
+import android.net.Uri
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Logout
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.example.midterm.data.model.Role
 import com.example.midterm.data.model.User
+import com.example.midterm.data.repository.UserRepository
+import com.example.midterm.util.UserSessionManager
+import kotlinx.coroutines.launch
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STATELESS UI — preview-friendly
@@ -27,7 +39,8 @@ import com.example.midterm.data.model.User
 @Composable
 fun UserDashboardContent(
     user: User?,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onImageUpdate: (Uri) -> Unit = {}
 ) {
     val gradientBrush = Brush.verticalGradient(
         colors = listOf(Color(0xFF1A1A2E), Color(0xFF16213E), Color(0xFF0F3460))
@@ -77,20 +90,30 @@ fun UserDashboardContent(
         ) {
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Avatar lớn
+            // Avatar lớn - có thể click để update
             Box(
                 modifier = Modifier
                     .size(100.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF4CAF82)),
+                    .background(Color(0xFF4CAF82))
+                    .clickable { onImageUpdate(Uri.EMPTY) },
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = user?.username?.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 40.sp
-                )
+                if (!user?.imageUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = java.io.File(user!!.imageUrl),
+                        contentDescription = "Avatar",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Text(
+                        text = user?.username?.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 40.sp
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -183,10 +206,53 @@ fun InfoRow(label: String, value: String) {
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 fun UserDashboardScreen(onLogout: () -> Unit) {
-    // Trong thực tế, user sẽ được truyền qua ViewModel/Session
+    val currentUser by UserSessionManager.currentUser.collectAsStateWithLifecycle()
+    val coroutineScope = rememberCoroutineScope()
+    val repository = remember { UserRepository() }
+    var isUpdating by remember { mutableStateOf(false) }
+
+    // Image picker launcher (định nghĩa trước)
+    val imageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri ->
+            if (uri != null && currentUser != null) {
+                isUpdating = true
+                coroutineScope.launch {
+                    val result = repository.updateUser(currentUser!!, uri)
+                    if (result.isSuccess) {
+                        // Reload user từ session để lấy imageUrl mới
+                        val reloadedUser = currentUser!!.copy(imageUrl = currentUser!!.imageUrl)
+                        UserSessionManager.setCurrentUser(reloadedUser)
+                    }
+                    isUpdating = false
+                }
+            }
+        }
+    )
+
+    // Permission request handler
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (isGranted) {
+                imageLauncher.launch("image/*")
+            }
+        }
+    )
+
     UserDashboardContent(
-        user = null,
-        onLogout = onLogout
+        user = currentUser,
+        onLogout = onLogout,
+        onImageUpdate = {
+            if (!isUpdating) {
+                val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    Manifest.permission.READ_MEDIA_IMAGES
+                } else {
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+                }
+                permissionLauncher.launch(permission)
+            }
+        }
     )
 }
 

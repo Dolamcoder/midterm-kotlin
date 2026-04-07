@@ -1,6 +1,12 @@
 package com.example.midterm.ui.admin
 
+import android.Manifest
+import android.net.Uri
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -23,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.example.midterm.data.model.Role
 import com.example.midterm.data.model.User
 import androidx.compose.material.icons.*
@@ -109,13 +117,30 @@ fun UserFormDialog(
     title: String,
     initialUser: User? = null,
     onDismiss: () -> Unit,
-    onConfirm: (username: String, password: String, role: Role) -> Unit
+    onConfirm: (username: String, password: String, role: Role, imageUri: Uri?) -> Unit
 ) {
     var username by remember { mutableStateOf(initialUser?.username ?: "") }
     var password by remember { mutableStateOf("") }
     var selectedRole by remember { mutableStateOf(initialUser?.role ?: Role.USER) }
     var passwordVisible by remember { mutableStateOf(false) }
     var formError by remember { mutableStateOf<String?>(null) }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    
+    // Image picker launcher
+    val imageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri -> selectedImageUri = uri }
+    )
+    
+    // Permission launcher
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (isGranted) {
+                imageLauncher.launch("image/*")
+            }
+        }
+    )
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -125,6 +150,54 @@ fun UserFormDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Avatar upload
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF2D3F55))
+                        .clickable {
+                            val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                Manifest.permission.READ_MEDIA_IMAGES
+                            } else {
+                                Manifest.permission.READ_EXTERNAL_STORAGE
+                            }
+                            permissionLauncher.launch(permission)
+                        }
+                        .align(Alignment.CenterHorizontally),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (selectedImageUri != null) {
+                        AsyncImage(
+                            model = selectedImageUri,
+                            contentDescription = "Avatar",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else if (!initialUser?.imageUrl.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = java.io.File(initialUser!!.imageUrl),
+                            contentDescription = "Avatar",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.Image,
+                                contentDescription = null,
+                                tint = Color(0xFF8899AA),
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Text(
+                                "Chọn ảnh",
+                                fontSize = 10.sp,
+                                color = Color(0xFF8899AA)
+                            )
+                        }
+                    }
+                }
+                
                 OutlinedTextField(
                     value = username,
                     onValueChange = { username = it },
@@ -149,8 +222,7 @@ fun UserFormDialog(
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(
-                                if (passwordVisible) Icons.Default.
-                                Visibility else Icons.Default.VisibilityOff,
+                                if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                 contentDescription = null, tint = Color(0xFF8899AA)
                             )
                         }
@@ -203,7 +275,7 @@ fun UserFormDialog(
                     }
                     val finalPassword = if (initialUser != null && password.isBlank())
                         initialUser.password else password
-                    onConfirm(username, finalPassword, selectedRole)
+                    onConfirm(username, finalPassword, selectedRole, selectedImageUri)
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5E8AB4)),
                 shape = RoundedCornerShape(8.dp)
@@ -382,8 +454,8 @@ fun AdminDashboardScreen(
         UserFormDialog(
             title = "➕ Thêm tài khoản mới",
             onDismiss = { showAddDialog = false },
-            onConfirm = { username, password, role ->
-                viewModel.createUser(username, password, role)
+            onConfirm = { username, password, role, imageUri ->
+                viewModel.createUser(username, password, role, imageUri)
                 showAddDialog = false
             }
         )
@@ -395,8 +467,8 @@ fun AdminDashboardScreen(
             title = "✏️ Sửa tài khoản",
             initialUser = user,
             onDismiss = { editingUser = null },
-            onConfirm = { _, password, role ->
-                viewModel.updateUser(user.copy(password = password, role = role))
+            onConfirm = { _, password, role, imageUri ->
+                viewModel.updateUser(user.copy(password = password, role = role), imageUri)
                 editingUser = null
             }
         )

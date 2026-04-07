@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.midterm.data.model.Role
 import com.example.midterm.data.model.User
+import com.example.midterm.data.repository.AuthRepository
 import com.example.midterm.data.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,12 +32,15 @@ class LoginViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.value = LoginUiState.Loading
             try {
-                val user = repository.login(username.trim(), password.trim())
-                if (user != null) {
-                    _uiState.value = LoginUiState.Success(user)
-                } else {
-                    _uiState.value = LoginUiState.Error("Sai tên đăng nhập hoặc mật khẩu")
-                }
+                val result = repository.login(username.trim(), password.trim())
+                result.fold(
+                    onSuccess = { user ->
+                        _uiState.value = LoginUiState.Success(user)
+                    },
+                    onFailure = {
+                        _uiState.value = LoginUiState.Error("Sai tên đăng nhập hoặc mật khẩu")
+                    }
+                )
             } catch (e: Exception) {
                 _uiState.value = LoginUiState.Error("Lỗi kết nối: ${e.message}")
             }
@@ -45,11 +49,5 @@ class LoginViewModel : ViewModel() {
 
     fun resetState() {
         _uiState.value = LoginUiState.Idle
-    }
-
-    fun seedAdmin() {
-        viewModelScope.launch {
-            try { repository.seedAdminIfNeeded() } catch (_: Exception) {}
-        }
     }
 }
