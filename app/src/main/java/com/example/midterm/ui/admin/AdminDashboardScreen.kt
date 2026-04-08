@@ -223,8 +223,7 @@ fun UserFormDialog(
                         unfocusedTextColor = Color.White,
                         cursorColor = Color(0xFF5E8AB4)
                     ),
-                    singleLine = true,
-                    readOnly = initialUser != null  // Edit mode: không đổi username
+                    singleLine = true
                 )
 
                 OutlinedTextField(
@@ -479,8 +478,10 @@ fun AdminDashboardScreen(
             title = "✏️ Sửa tài khoản",
             initialUser = user,
             onDismiss = { editingUser = null },
-            onConfirm = { _, password, role, imageUri ->
-                viewModel.updateUser(user.copy(password = password, role = role), imageUri)
+            onConfirm = { username, password, role, imageUri ->
+                // Nếu password rỗng, giữ password cũ
+                val finalPassword = if (password.isBlank()) user.password else password
+                viewModel.updateUser(user.copy(username = username, password = finalPassword, role = role), imageUri)
                 editingUser = null
             }
         )
